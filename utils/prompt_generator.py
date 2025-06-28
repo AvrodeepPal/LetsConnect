@@ -25,7 +25,7 @@ REQUIRED SPECIFICATIONS:
    - Greeting section (Dear + Greetings) - then gap
    - Company invitation paragraph - then gap
    - NAAC/NIRF paragraph - then gap
-   - Skills list (6-7 ✅ short bullets) - then gap
+   - Skills list (5-7 ✅ short and concise (2-4 words) bullets) - then gap
    - Closing paragraph - then gap
    - Contact information - then gap
    - Signature block
@@ -38,7 +38,7 @@ REQUIRED SPECIFICATIONS:
    
    [NAAC/NIRF paragraph with rankings]
    
-   [Skills list with 6-7 ✅ bullets - each on new line]
+   [Skills list with 5-7 ✅ bullets - each on new line]
    
    [Brief closing paragraph about collaboration]
    
