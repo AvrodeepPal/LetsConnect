@@ -1,0 +1,29 @@
+{
+  "base_message": "Dear Recruitment Team,\n\nGreetings from the Jadavpur University Placement Cell!\n\nWe are excited to invite {company_name} to participate in our Campus Recruitment Drive for the 2026 graduating batch.\n\nBeing a NAAC A-Grade Tier-1 institution and consistently ranked among the top engineering and research universities in India (NIRF 2024: 2nd State University, 12th in Engineering), our students bring strong expertise across:\n\n✅ Data Science & Analytics  \n✅ Machine Learning & AI  \n✅ Web and App Development  \n✅ Cloud & DevOps  \n✅ Circuits & LLD\n✅ Core Engineering & Software Development  \n\nWe believe your hiring focus on Data Science, Engineering, Analytics, and App Development aligns perfectly with the talent pool at Jadavpur University.\n\nFor coordination, please feel free to reach out:  \n📧 Email: officer.placement@jadavpuruniversity.in  \n📧 CC: {cc_email}\n\nWe look forward to a fruitful collaboration with **{company_name}**!\n\nBest Regards,  \n{name}  \nPlacement Coordinator, MCA  \nJadavpur Placement Cell  \n📞 {contact}",
+  "coordinators": [
+    {
+      "name": "Chitranku Sarkar",
+      "email": "chitrankusarkar1@gmail.com",
+      "phone": "+91 76028 31471",
+      "pswd": "chitranku_password"
+    },
+    {
+      "name": "Pratik Kotal",
+      "email": "kotalpratik@gmail.com",
+      "phone": "+91 98765 43210",
+      "pswd": "pratik_password"
+    },
+    {
+      "name": "Avrodeep Pal",
+      "email": "avrodeep.pal17@gmail.com",
+      "phone": "+91 85838 42681",
+      "pswd": "avrodeep_password"
+    },
+    {
+      "name": "Sauvik Das",
+      "email": "sgc.burdwan@gmail.com",
+      "phone": "+91 99887 77665",
+      "pswd": "sauvik_password"
+    }
+  ]
+}
