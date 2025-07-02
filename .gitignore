@@ -1,4 +1,10 @@
-# Ignore .env files
+# Ignore the following files
 .env
 .venv
 .venv/
+*.log
+generate_training_data.py
+initial_code.txt
+record.json
+tdata.json
+__pycache__/
