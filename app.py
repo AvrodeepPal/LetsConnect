@@ -8,7 +8,8 @@ from components.expander import render_expanders
 from components.markdown import render_footer_markdown
 from components.base_invitation import render_base_invitation_section
 from components.company_info import render_company_info_section
-from components.generate_ainvite import render_generate_section, render_generated_mail_display
+from components.generate_ainvite import render_generate_section
+from components.display_ainvite import render_generated_mail_display
 
 # Configure page
 st.set_page_config(

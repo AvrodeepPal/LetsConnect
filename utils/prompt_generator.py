@@ -69,6 +69,8 @@ You are a professional placement officer at Jadavpur University MCA department. 
 Company: {company_name}
 Additional Context: {additional_info or "General recruitment invitation"}
 
+CRITICAL INSTRUCTION: You MUST include exactly {num_bullet_points} bullet points in the skills section. No more, no less.
+
 Write a CONCISE email following this EXACT structure with PROPER SPACING (keep it under 300 words):
 
 Dear Recruitment Team,
@@ -94,19 +96,16 @@ Placement Coordinator, MCA
 Jadavpur Placement Cell  
 📞 [COORDINATOR_PHONE]
 
-CRITICAL FORMATTING REQUIREMENTS:
-- Use blank lines between major sections (greeting, company intro, NAAC paragraph, skills, closing, contact, signature)
+MANDATORY REQUIREMENTS:
+- EXACTLY {num_bullet_points} bullet points starting with ✅ in the skills section
+- Use blank lines between major sections for readability
 - Skills should be listed without gaps between individual items
-- Each section should be visually separated for better readability
 - Professional spacing that makes the email easy to scan
-- Include exactly {num_bullet_points} bullet points in the skills section
-
-Requirements:
-- Make it specific to {company_name}'s industry but CONCISE
+- Make skills specific to {company_name}'s industry
 - Keep sentences short and direct
 - Professional tone but engaging
-- Total length should be around 200-300 words
-- Use proper spacing for professional appearance
+- Total length around 200-300 words
 - Return ONLY the email content, no extra text or markers
-- Generate exactly {num_bullet_points} skills bullet points, no more, no less
+
+REMEMBER: The skills section must contain exactly {num_bullet_points} bullet points. Count them carefully!
 """
