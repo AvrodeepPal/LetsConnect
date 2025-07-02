@@ -56,9 +56,13 @@ IMPORTANT:
 - Ensure proper visual separation between different content sections
 """
 
-# Updated improved prompt with better spacing guidance
-def create_improved_prompt(company_name, additional_info, base_message):
+# Updated improved prompt with better spacing guidance and num_bullet_points parameter
+def create_improved_prompt(company_name, additional_info, base_message, num_bullet_points=6):
     """Create an improved prompt for better email generation with proper spacing"""
+    
+    # Generate the bullet point template based on num_bullet_points
+    bullet_template = "\n".join([f"✅ [Skill {i+1} relevant to {company_name}]" for i in range(num_bullet_points)])
+    
     return f"""
 You are a professional placement officer at Jadavpur University MCA department. Write a complete, personalized invitation email for campus recruitment.
 
@@ -74,13 +78,7 @@ Greetings from the Jadavpur University Placement Cell!
 
 Being a NAAC A-Grade Tier-1 institution and consistently ranked among the top engineering and research universities in India (NIRF 2024: 2nd State University, 12th in Engineering), our students bring strong expertise across:
 
-✅ [Skill 1 relevant to {company_name}]
-✅ [Skill 2 relevant to {company_name}]
-✅ [Skill 3 relevant to {company_name}]
-✅ [Skill 4 relevant to {company_name}]
-✅ [Skill 5 relevant to {company_name}]
-✅ [Skill 6 relevant to {company_name}]
-✅ [Skill 7 relevant to {company_name}]
+{bullet_template}
 
 [Write 1 SHORT sentence about why our students would be perfect for {company_name}]
 
@@ -101,6 +99,7 @@ CRITICAL FORMATTING REQUIREMENTS:
 - Skills should be listed without gaps between individual items
 - Each section should be visually separated for better readability
 - Professional spacing that makes the email easy to scan
+- Include exactly {num_bullet_points} bullet points in the skills section
 
 Requirements:
 - Make it specific to {company_name}'s industry but CONCISE
@@ -109,4 +108,5 @@ Requirements:
 - Total length should be around 200-300 words
 - Use proper spacing for professional appearance
 - Return ONLY the email content, no extra text or markers
+- Generate exactly {num_bullet_points} skills bullet points, no more, no less
 """
