@@ -1,8 +1,8 @@
-import psycopg2
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
-from db.auth import get_user_by_email
+from supabase import create_client, Client
+import pytz
 
 # Get the absolute path to the project root directory
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -11,196 +11,192 @@ env_path = os.path.join(project_root, '.env')
 # Load environment variables from the correct path
 load_dotenv(env_path)
 
-DB_URL = os.getenv("SUPABASE_DB_URL")
+url = os.getenv("SUPABASE_URL")
+key = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
 
-def verify_otp(email, roll_number, entered_otp):
+# IST timezone
+IST = pytz.timezone('Asia/Kolkata')
+
+def get_ist_time():
+    """Get current time in IST"""
+    return datetime.now(IST)
+
+def get_utc_time():
+    """Get current time in UTC"""
+    return datetime.now(timezone.utc)
+
+def log_successful_login(email):
     """
-    Verify the entered OTP against stored OTP and check expiry
+    Log a successful login to the user_logs table with IST time
+    """
+    try:
+        # Get current IST time
+        ist_time = get_ist_time()
+        
+        login_record = {
+            "email": email,
+            "password_hash": "successful_login",
+            "last_login": ist_time.isoformat(),  # Store IST time directly
+            "otp": None,
+            "otp_expiry": None
+        }
+        
+        result = supabase.table("user_logs").insert(login_record).execute()
+        print(f"Login logged successfully for {email}")
+        print(f"IST time saved: {ist_time.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+        print(f"IST time ISO: {ist_time.isoformat()}")
+        return True, "Login logged successfully"
+        
+    except Exception as e:
+        print(f"Error logging successful login: {e}")
+        return False, f"Error logging login: {e}"
+
+def verify_otp(email, entered_otp):
+    """
+    Verify OTP against database and check expiry
     Returns: (success: bool, message: str, user_data: dict or None)
     """
     try:
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
+        # Get user data from coord_details table
+        from db.auth import get_user_by_email
+        user_data = get_user_by_email(email)
+        if not user_data:
+            return False, "User not found", None
         
-        # Fetch the latest OTP and expiry for this user
-        cursor.execute("""
-            SELECT otp, otp_expiry 
-            FROM user_logs 
-            WHERE email = %s AND roll_number = %s
-            ORDER BY last_login DESC
-            LIMIT 1;
-        """, (email, roll_number))
+        # Get the latest OTP record for this user
+        response = supabase.table("user_logs").select("*").eq("email", email).order("last_login", desc=True).limit(1).execute()
         
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
+        if not response.data:
+            return False, "No OTP record found. Please request a new OTP.", None
         
-        if result is None:
-            return False, "No OTP found for this user", None
+        otp_record = response.data[0]
+        stored_otp = otp_record.get('otp')
+        otp_expiry_str = otp_record.get('otp_expiry')
         
-        stored_otp, otp_expiry = result
+        if not stored_otp or not otp_expiry_str:
+            return False, "Invalid OTP record. Please request a new OTP.", None
+        
+        # Parse expiry time properly
+        try:
+            # Handle different datetime formats
+            if otp_expiry_str.endswith('Z'):
+                otp_expiry = datetime.fromisoformat(otp_expiry_str.replace('Z', '+00:00'))
+            elif '+' in otp_expiry_str or otp_expiry_str.endswith('+00:00'):
+                otp_expiry = datetime.fromisoformat(otp_expiry_str)
+            else:
+                # Assume UTC if no timezone info
+                otp_expiry = datetime.fromisoformat(otp_expiry_str).replace(tzinfo=timezone.utc)
+        except:
+            return False, "Invalid OTP expiry format. Please request a new OTP.", None
         
         # Check if OTP has expired
-        if datetime.now() > otp_expiry:
-            return False, "OTP has expired. Please request a new one.", None
+        now_utc = get_utc_time()
         
-        # Check if OTP matches
-        if entered_otp.strip() != stored_otp.strip():
-            # Log failed attempt
-            log_failed_attempt(email, roll_number, entered_otp)
+        if now_utc > otp_expiry:
+            return False, "OTP has expired. Please request a new OTP.", None
+        
+        # Verify OTP
+        if stored_otp != entered_otp:
             return False, "Invalid OTP. Please check and try again.", None
         
-        # OTP is valid, get user data
-        user_data = get_user_by_email(email)
-        
-        if user_data is None:
-            return False, "User data not found", None
-        
-        # Mark OTP as used (optional - you can implement this)
-        mark_otp_as_used(email, roll_number)
-        
-        return True, "OTP verified successfully", user_data
-        
-    except Exception as e:
-        return False, f"Verification error: {e}", None
-
-def log_failed_attempt(email, roll_number, entered_otp):
-    """
-    Log failed OTP attempts for security purposes
-    """
-    try:
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
-        
-        # You can create a separate table for failed attempts or update user_logs
-        # For now, we'll just update the last_login timestamp to track activity
-        cursor.execute("""
-            UPDATE user_logs 
-            SET last_login = %s 
-            WHERE email = %s AND roll_number = %s;
-        """, (datetime.now(), email, roll_number))
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-    except Exception as e:
-        print(f"Failed to log failed attempt: {e}")
-
-def mark_otp_as_used(email, roll_number):
-    """
-    Mark OTP as used by clearing it from the database
-    This prevents OTP reuse attacks
-    """
-    try:
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
-        
-        # Clear the OTP after successful verification
-        cursor.execute("""
-            UPDATE user_logs 
-            SET otp = NULL, otp_expiry = NULL 
-            WHERE email = %s AND roll_number = %s;
-        """, (email, roll_number))
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-    except Exception as e:
-        print(f"Failed to mark OTP as used: {e}")
-
-def get_otp_status(email, roll_number):
-    """
-    Get OTP status for a user
-    Returns: (has_valid_otp: bool, otp_expiry: datetime or None)
-    """
-    try:
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT otp, otp_expiry 
-            FROM user_logs 
-            WHERE email = %s AND roll_number = %s
-            ORDER BY last_login DESC
-            LIMIT 1;
-        """, (email, roll_number))
-        
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        if result:
-            otp, otp_expiry = result
+        # OTP is valid - Log successful login
+        try:
+            # Log the successful login
+            log_successful_login(email)
             
-            # Check if OTP exists and is not expired
-            if otp and otp_expiry and datetime.now() < otp_expiry:
-                return True, otp_expiry
+            # Clear the OTP from the previous record to prevent reuse
+            supabase.table("user_logs").update({
+                "otp": None,
+                "otp_expiry": None
+            }).eq("id", otp_record["id"]).execute()
+            
+        except Exception as log_error:
+            print(f"Warning: Could not log successful login: {log_error}")
+            # Continue with login even if logging fails
         
-        return False, None
+        # Get additional user data from coord_details
+        coord_response = supabase.table("coord_details").select("*").eq("email", email).execute()
+        if coord_response.data:
+            coord_data = coord_response.data[0]
+            user_data = {
+                'id': coord_data['id'],
+                'name': coord_data['name'],
+                'email': coord_data['email'],
+                'roll_number': coord_data['roll_number']
+            }
+        
+        return True, f"OTP verified successfully. Welcome {user_data['name']}!", user_data
         
     except Exception as e:
-        print(f"Error checking OTP status: {e}")
-        return False, None
+        return False, f"Verification error: {str(e)}", None
 
-def cleanup_expired_otps():
+def is_otp_valid(email):
     """
-    Clean up expired OTPs from the database
-    This can be called periodically or as part of a cleanup job
+    Check if there's a valid (non-expired) OTP for the given email
+    Returns: (valid: bool, remaining_seconds: int)
     """
     try:
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
+        # Get the latest OTP record
+        response = supabase.table("user_logs").select("otp_expiry").eq("email", email).order("last_login", desc=True).limit(1).execute()
+        
+        if not response.data:
+            return False, 0
+        
+        otp_expiry_str = response.data[0].get('otp_expiry')
+        if not otp_expiry_str:
+            return False, 0
+        
+        # Parse expiry time
+        try:
+            if otp_expiry_str.endswith('Z'):
+                otp_expiry = datetime.fromisoformat(otp_expiry_str.replace('Z', '+00:00'))
+            elif '+' in otp_expiry_str or otp_expiry_str.endswith('+00:00'):
+                otp_expiry = datetime.fromisoformat(otp_expiry_str)
+            else:
+                otp_expiry = datetime.fromisoformat(otp_expiry_str).replace(tzinfo=timezone.utc)
+        except:
+            return False, 0
+        
+        # Check expiry
+        now_utc = get_utc_time()
+        
+        if now_utc < otp_expiry:
+            remaining_seconds = int((otp_expiry - now_utc).total_seconds())
+            return True, remaining_seconds
+        else:
+            return False, 0
+            
+    except Exception as e:
+        print(f"Error checking OTP validity: {e}")
+        return False, 0
+
+def clear_expired_otps():
+    """Clear all expired OTPs from the database"""
+    try:
+        now_utc = get_utc_time().isoformat()
         
         # Clear expired OTPs
-        cursor.execute("""
-            UPDATE user_logs 
-            SET otp = NULL, otp_expiry = NULL 
-            WHERE otp_expiry < %s;
-        """, (datetime.now(),))
+        supabase.table("user_logs").update({
+            "otp": None,
+            "otp_expiry": None
+        }).lt("otp_expiry", now_utc).execute()
         
-        rows_affected = cursor.rowcount
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        print(f"Cleaned up {rows_affected} expired OTPs")
+        return True, "Expired OTPs cleared successfully"
         
     except Exception as e:
-        print(f"Failed to cleanup expired OTPs: {e}")
+        return False, f"Error clearing expired OTPs: {e}"
 
-def resend_otp_allowed(email, roll_number, cooldown_minutes=1):
-    """
-    Check if user is allowed to resend OTP (rate limiting)
-    Returns: (allowed: bool, message: str)
-    """
+def revoke_otp(email):
+    """Revoke/clear OTP for a specific user"""
     try:
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
+        # Clear OTP for this user
+        supabase.table("user_logs").update({
+            "otp": None,
+            "otp_expiry": None
+        }).eq("email", email).execute()
         
-        cursor.execute("""
-            SELECT last_login 
-            FROM user_logs 
-            WHERE email = %s AND roll_number = %s
-            ORDER BY last_login DESC
-            LIMIT 1;
-        """, (email, roll_number))
-        
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        if result:
-            last_login = result[0]
-            time_since_last = datetime.now() - last_login
-            
-            if time_since_last.total_seconds() < cooldown_minutes * 60:
-                remaining_seconds = cooldown_minutes * 60 - time_since_last.total_seconds()
-                return False, f"Please wait {int(remaining_seconds)} seconds before requesting a new OTP"
-        
-        return True, "Resend allowed"
+        return True, "OTP revoked successfully"
         
     except Exception as e:
-        return False, f"Error checking resend status: {e}"
+        return False, f"Error revoking OTP: {e}"

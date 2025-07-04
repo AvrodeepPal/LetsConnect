@@ -9,11 +9,10 @@ def render_login_page():
     # Check if we're in OTP verification stage
     if st.session_state.get("otp_stage", False):
         email = st.session_state.get("otp_email", "")
-        roll_number = st.session_state.get("otp_roll", "")
         
-        if email and roll_number:
+        if email:
             # Render OTP page
-            render_otp_page(email, roll_number)
+            render_otp_page(email)
             return
     
     # Regular login page
@@ -30,12 +29,6 @@ def render_login_page():
             help="Use the email address registered in the system"
         )
         
-        roll_number = st.text_input(
-            "Roll Number",
-            placeholder="Enter your roll number",
-            help="Your university roll number"
-        )
-        
         password = st.text_input(
             "Password",
             type="password",
@@ -46,20 +39,20 @@ def render_login_page():
         submitted = st.form_submit_button("Login", use_container_width=True)
         
         if submitted:
-            if not email or not roll_number or not password:
+            if not email or not password:
                 st.error("Please fill in all fields")
                 return False
             
             # Verify credentials
             with st.spinner("Verifying credentials..."):
-                success, message, user_data = verify_user(email, roll_number, password)
+                success, message, user_data = verify_user(email, password)
             
             if success:
                 st.success(f"✅ Credentials verified for {user_data['name']}!")
                 
                 # Generate and send OTP
                 with st.spinner("Generating OTP..."):
-                    otp_success, otp_message = generate_and_send_otp(email, roll_number)
+                    otp_success, otp_message = generate_and_send_otp(email)
                 
                 if otp_success:
                     st.success("📧 OTP sent to your email!")
@@ -68,7 +61,6 @@ def render_login_page():
                     # Set OTP stage in session state
                     st.session_state["otp_stage"] = True
                     st.session_state["otp_email"] = email
-                    st.session_state["otp_roll"] = roll_number
                     st.session_state["temp_user_data"] = user_data
                     
                     # Rerun to show OTP page
@@ -87,7 +79,7 @@ def render_login_page():
         st.markdown("""
         **Having trouble logging in?**
         
-        - Make sure you're using the correct email address and roll number
+        - Make sure you're using the correct email address
         - Check that your password is entered correctly
         - Contact the system administrator if you've forgotten your credentials
         
@@ -113,8 +105,7 @@ def handle_logout():
         "user_name", 
         "user_roll",
         "otp_stage",
-        "otp_email", 
-        "otp_roll",
+        "otp_email",
         "temp_user_data"
     ]
     
@@ -147,8 +138,7 @@ def clear_otp_session():
     """
     keys_to_clear = [
         "otp_stage", 
-        "otp_email", 
-        "otp_roll", 
+        "otp_email",
         "temp_user_data"
     ]
     

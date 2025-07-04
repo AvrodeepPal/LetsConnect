@@ -1,10 +1,10 @@
-import psycopg2
 import os
 from dotenv import load_dotenv
-from passlib.hash import bcrypt
-from datetime import datetime
+import bcrypt  # Fixed import
+from datetime import datetime, timezone, timedelta
 import random
 import string
+from supabase import create_client, Client
 
 # Get the absolute path to the project root directory
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -13,42 +13,32 @@ env_path = os.path.join(project_root, '.env')
 # Load environment variables from the correct path
 load_dotenv(env_path)
 
-DB_URL = os.getenv("SUPABASE_DB_URL")
+url = os.getenv("SUPABASE_URL")
+key = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
 
-def verify_user(email, roll_number, password):
+def verify_user(email, password):
     """
     Verify user credentials against coord_details table
     Returns: (success: bool, message: str, user_data: dict or None)
     """
     try:
-        # Connect to Supabase Postgres
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
+        # Fetch user data for the given email
+        response = supabase.table("coord_details").select("*").eq("email", email).execute()
         
-        # Fetch user data for the given email and roll number
-        cursor.execute("""
-            SELECT id, name, email, phone, roll_number, password_hash 
-            FROM coord_details 
-            WHERE email = %s AND roll_number = %s;
-        """, (email, roll_number))
-        
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        if result is None:
+        if not response.data:
             return False, "Invalid credentials - user not found", None
         
-        user_id, name, email, phone, roll_number, stored_hash = result
+        user = response.data[0]
         
         # Compare entered password with stored hash
-        if bcrypt.verify(password, stored_hash):
+        if bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
             user_data = {
-                'id': user_id,
-                'name': name,
-                'email': email,
-                'phone': phone,
-                'roll_number': roll_number
+                'id': user['id'],
+                'name': user['name'],
+                'email': user['email'],
+                'phone': user['phone'],
+                'roll_number': user['roll_number']
             }
             return True, "Login successful", user_data
         else:
@@ -57,35 +47,26 @@ def verify_user(email, roll_number, password):
     except Exception as e:
         return False, f"Database error: {e}", None
 
-def log_user_session(user_id, email, roll_number):
+def log_user_session(user_id, email):
     """
     Log user session to user_logs table
     Returns: (success: bool, message: str)
     """
     try:
-        # Connect to Supabase Postgres
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
-        
-        # Generate random OTP (you mentioned you'll fix this later)
+        # Generate random OTP
         otp = ''.join(random.choices(string.digits, k=6))
         
-        # Insert login record
-        cursor.execute("""
-            INSERT INTO user_logs (email, roll_number, password_hash, last_login, otp, otp_expiry)
-            VALUES (%s, %s, %s, %s, %s, %s);
-        """, (
-            email,
-            roll_number,
-            'logged_in',  # Placeholder hash for login record
-            datetime.now(),
-            otp,
-            datetime.now()  # You can adjust OTP expiry logic later
-        ))
+        # Set expiry 5 minutes in the future
+        otp_expiry_time = datetime.now(timezone.utc) + timedelta(minutes=5)
         
-        conn.commit()
-        cursor.close()
-        conn.close()
+        # Insert login record
+        supabase.table("user_logs").insert({
+            "email": email,
+            "password_hash": "logged_in",
+            "last_login": datetime.now(timezone.utc).isoformat(),
+            "otp": otp,
+            "otp_expiry": otp_expiry_time.isoformat()
+        }).execute()
         
         return True, "Session logged successfully"
         
@@ -98,26 +79,15 @@ def get_user_by_email(email):
     Returns: user_data dict or None
     """
     try:
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
+        response = supabase.table("coord_details").select("*").eq("email", email).execute()
         
-        cursor.execute("""
-            SELECT id, name, email, phone, roll_number 
-            FROM coord_details 
-            WHERE email = %s;
-        """, (email,))
-        
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        if result:
+        if response.data:
+            user = response.data[0]
             return {
-                'id': result[0],
-                'name': result[1],
-                'email': result[2],
-                'phone': result[3],
-                'roll_number': result[4]
+                'id': user['id'],
+                'name': user['name'],
+                'email': user['email'],
+                'roll_number': user['roll_number']
             }
         return None
         

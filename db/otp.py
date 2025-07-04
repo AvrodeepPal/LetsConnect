@@ -1,14 +1,14 @@
 import streamlit as st
-import psycopg2
 import os
 import smtplib
 import random
 import string
-import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
+from supabase import create_client, Client
+import pytz
 
 # Get the absolute path to the project root directory
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,56 +17,50 @@ env_path = os.path.join(project_root, '.env')
 # Load environment variables from the correct path
 load_dotenv(env_path, override=True)
 
-DB_URL = os.getenv("SUPABASE_DB_URL")
+url = os.getenv("SUPABASE_URL")
+key = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
+
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
+# IST timezone
+IST = pytz.timezone('Asia/Kolkata')
+
 def generate_otp():
-    """
-    Generate a 6-digit numeric OTP
-    Returns: str
-    """
+    """Generate a 6-digit numeric OTP"""
     return ''.join(random.choices(string.digits, k=6))
 
-def store_otp_in_db(email, roll_number, otp):
-    """
-    Store OTP and expiry time in user_logs table
-    Returns: (success: bool, message: str)
-    """
+def get_ist_time():
+    """Get current time in IST"""
+    return datetime.now(IST)
+
+def store_otp_in_db(email, otp):
+    """Store OTP and expiry time in user_logs table"""
     try:
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
+        # Calculate times in UTC for database storage
+        now_utc = datetime.now(timezone.utc)
+        otp_expiry_utc = now_utc + timedelta(minutes=5)
         
-        # Calculate expiry time (5 minutes from now)
-        otp_expiry = datetime.now() + timedelta(minutes=5)
+        # Check if user already has an entry
+        response = supabase.table("user_logs").select("*").eq("email", email).order("last_login", desc=True).limit(1).execute()
         
-        # Check if user already has an entry in user_logs
-        cursor.execute("""
-            SELECT id FROM user_logs 
-            WHERE email = %s AND roll_number = %s
-            ORDER BY last_login DESC
-            LIMIT 1;
-        """, (email, roll_number))
-        
-        result = cursor.fetchone()
-        
-        if result:
+        if response.data:
             # Update existing record
-            cursor.execute("""
-                UPDATE user_logs 
-                SET otp = %s, otp_expiry = %s, last_login = %s
-                WHERE email = %s AND roll_number = %s;
-            """, (otp, otp_expiry, datetime.now(), email, roll_number))
+            supabase.table("user_logs").update({
+                "otp": otp,
+                "otp_expiry": otp_expiry_utc.isoformat(),
+                "last_login": now_utc.isoformat()
+            }).eq("email", email).execute()
         else:
             # Insert new record
-            cursor.execute("""
-                INSERT INTO user_logs (email, roll_number, password_hash, last_login, otp, otp_expiry)
-                VALUES (%s, %s, %s, %s, %s, %s);
-            """, (email, roll_number, 'otp_login', datetime.now(), otp, otp_expiry))
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
+            supabase.table("user_logs").insert({
+                "email": email,
+                "password_hash": "otp_login",
+                "last_login": now_utc.isoformat(),
+                "otp": otp,
+                "otp_expiry": otp_expiry_utc.isoformat()
+            }).execute()
         
         return True, "OTP stored successfully"
         
@@ -74,18 +68,13 @@ def store_otp_in_db(email, roll_number, otp):
         return False, f"Database error: {e}"
 
 def send_otp_email(email, otp):
-    """
-    Send OTP via Gmail SMTP
-    Returns: (success: bool, message: str)
-    """
+    """Send OTP via Gmail SMTP"""
     try:
-        # Create message
         msg = MIMEMultipart()
         msg['From'] = EMAIL_ADDRESS
         msg['To'] = email
         msg['Subject'] = "Your OTP for Coordinator Login"
         
-        # Email body
         body = f"""Dear User,
 
 Your One-Time Password (OTP) for login is: {otp}
@@ -97,14 +86,10 @@ Let's Connect Team"""
         
         msg.attach(MIMEText(body, 'plain'))
         
-        # Setup Gmail SMTP
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        
-        # Send email
-        text = msg.as_string()
-        server.sendmail(EMAIL_ADDRESS, email, text)
+        server.sendmail(EMAIL_ADDRESS, email, msg.as_string())
         server.quit()
         
         return True, "OTP sent successfully"
@@ -112,16 +97,12 @@ Let's Connect Team"""
     except Exception as e:
         return False, f"Email error: {e}"
 
-def generate_and_send_otp(email, roll_number):
-    """
-    Generate OTP, store in DB, and send via email
-    Returns: (success: bool, message: str)
-    """
-    # Generate OTP
+def generate_and_send_otp(email):
+    """Generate OTP, store in DB, and send via email"""
     otp = generate_otp()
     
     # Store in database
-    db_success, db_message = store_otp_in_db(email, roll_number, otp)
+    db_success, db_message = store_otp_in_db(email, otp)
     if not db_success:
         return False, db_message
     
@@ -132,94 +113,106 @@ def generate_and_send_otp(email, roll_number):
     
     return True, "OTP generated and sent successfully"
 
-def get_remaining_time(email, roll_number):
-    """
-    Get remaining time for OTP validity
-    Returns: (remaining_seconds: int, expired: bool)
-    """
+def get_otp_times(email):
+    """Get OTP sent and expiry times in IST"""
     try:
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
+        response = supabase.table("user_logs").select("last_login, otp_expiry").eq("email", email).order("last_login", desc=True).limit(1).execute()
         
-        cursor.execute("""
-            SELECT otp_expiry FROM user_logs 
-            WHERE email = %s AND roll_number = %s
-            ORDER BY last_login DESC
-            LIMIT 1;
-        """, (email, roll_number))
-        
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        if result:
-            otp_expiry = result[0]
-            now = datetime.now()
+        if response.data:
+            last_login_str = response.data[0]['last_login']
+            otp_expiry_str = response.data[0]['otp_expiry']
             
-            if now < otp_expiry:
-                remaining_seconds = int((otp_expiry - now).total_seconds())
-                return remaining_seconds, False
-            else:
-                return 0, True
+            if last_login_str and otp_expiry_str:
+                try:
+                    # Parse sent time
+                    if last_login_str.endswith('Z'):
+                        sent_time_utc = datetime.fromisoformat(last_login_str.replace('Z', '+00:00'))
+                    elif '+' in last_login_str:
+                        sent_time_utc = datetime.fromisoformat(last_login_str)
+                    else:
+                        sent_time_utc = datetime.fromisoformat(last_login_str).replace(tzinfo=timezone.utc)
+                    
+                    # Parse expiry time
+                    if otp_expiry_str.endswith('Z'):
+                        expiry_time_utc = datetime.fromisoformat(otp_expiry_str.replace('Z', '+00:00'))
+                    elif '+' in otp_expiry_str:
+                        expiry_time_utc = datetime.fromisoformat(otp_expiry_str)
+                    else:
+                        expiry_time_utc = datetime.fromisoformat(otp_expiry_str).replace(tzinfo=timezone.utc)
+                    
+                    # Convert to IST
+                    sent_time_ist = sent_time_utc.astimezone(IST)
+                    expiry_time_ist = expiry_time_utc.astimezone(IST)
+                    
+                    return sent_time_ist, expiry_time_ist
+                except Exception as parse_error:
+                    print(f"Error parsing OTP times: {parse_error}")
+                    return None, None
         
-        return 0, True
+        return None, None
         
     except Exception as e:
-        return 0, True
+        print(f"Error getting OTP times: {e}")
+        return None, None
 
-def format_time(seconds):
-    """
-    Format seconds into minutes and seconds
-    Returns: str
-    """
-    minutes = seconds // 60
-    seconds = seconds % 60
-    return f"{minutes} minutes {seconds} seconds"
+def is_otp_expired(email):
+    """Check if OTP is expired"""
+    try:
+        response = supabase.table("user_logs").select("otp_expiry").eq("email", email).order("last_login", desc=True).limit(1).execute()
+        
+        if response.data:
+            otp_expiry_str = response.data[0]['otp_expiry']
+            if otp_expiry_str:
+                # Parse expiry time with proper timezone handling
+                try:
+                    if otp_expiry_str.endswith('Z'):
+                        otp_expiry_utc = datetime.fromisoformat(otp_expiry_str.replace('Z', '+00:00'))
+                    elif '+' in otp_expiry_str:
+                        otp_expiry_utc = datetime.fromisoformat(otp_expiry_str)
+                    else:
+                        # Assume UTC if no timezone info
+                        otp_expiry_utc = datetime.fromisoformat(otp_expiry_str).replace(tzinfo=timezone.utc)
+                    
+                    now_utc = datetime.now(timezone.utc)
+                    return now_utc > otp_expiry_utc
+                except Exception as parse_error:
+                    print(f"Error parsing OTP expiry time: {parse_error}")
+                    return True
+        
+        return True  # No OTP found, consider expired
+        
+    except Exception as e:
+        print(f"Error checking OTP expiry: {e}")
+        return True
 
-def render_otp_page(email, roll_number):
-    """
-    Render OTP entry page with countdown timer
-    Returns: bool (True if OTP verified successfully)
-    """
+def render_otp_page(email):
+    """Render OTP entry page with sent/expiry times"""
     st.title("🔐 OTP Verification")
     st.markdown("*Please check your email and enter the OTP below*")
     
-    # Simple refresh mechanism using button
-    if st.button("🔄 Refresh Timer", key="refresh_timer"):
-        st.rerun()
+    # Get OTP times
+    sent_time, expiry_time = get_otp_times(email)
     
-    # Get remaining time
-    remaining_seconds, expired = get_remaining_time(email, roll_number)
+    if sent_time and expiry_time:
+        st.info(f"📧 **OTP Sent at:** {sent_time.strftime('%I:%M %p IST')}")
+        st.info(f"⏰ **OTP Expires at:** {expiry_time.strftime('%I:%M %p IST')}")
     
-    if expired:
-        st.error("⏰ OTP has expired!")
-        st.markdown("**Please request a new OTP to continue.**")
+    # Check if OTP is expired
+    if is_otp_expired(email):
+        st.error("⏰ **OTP has expired!**")
+        st.warning("**New OTP sent automatically.**")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔄 Resend OTP", use_container_width=True):
-                with st.spinner("Generating new OTP..."):
-                    success, message = generate_and_send_otp(email, roll_number)
-                
-                if success:
-                    st.success("✅ New OTP sent to your email!")
-                    st.rerun()
-                else:
-                    st.error(f"❌ Failed to send OTP: {message}")
+        # Automatically generate new OTP
+        with st.spinner("Generating new OTP..."):
+            success, message = generate_and_send_otp(email)
         
-        with col2:
-            if st.button("⬅️ Back to Login", use_container_width=True):
-                # Clear OTP session state
-                for key in ['otp_stage', 'otp_email', 'otp_roll']:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.rerun()
+        if success:
+            st.success("✅ **New OTP sent to your email!**")
+            st.rerun()
+        else:
+            st.error(f"❌ Failed to send OTP: {message}")
         
         return False
-    
-    # Show countdown timer
-    st.info(f"⏱️ OTP expires in: **{format_time(remaining_seconds)}**")
-    st.caption("Click 'Refresh Timer' to update the countdown")
     
     # OTP entry form
     with st.form("otp_form"):
@@ -229,7 +222,6 @@ def render_otp_page(email, roll_number):
             "6-Digit OTP",
             type="password",
             placeholder="Enter the OTP from your email",
-            help="Check your email for the 6-digit OTP",
             max_chars=6
         )
         
@@ -242,18 +234,29 @@ def render_otp_page(email, roll_number):
             resend_button = st.form_submit_button("🔄 Resend OTP", use_container_width=True)
         
         if verify_button:
-            if not entered_otp:
-                st.error("Please enter the OTP")
+            if not entered_otp or len(entered_otp) != 6:
+                st.error("Please enter a valid 6-digit OTP")
                 return False
             
-            if len(entered_otp) != 6:
-                st.error("OTP must be 6 digits")
+            # Check expiry again before verification
+            if is_otp_expired(email):
+                st.error("⏰ **OTP has expired! New OTP sent.**")
+                
+                # Generate new OTP
+                with st.spinner("Generating new OTP..."):
+                    success, message = generate_and_send_otp(email)
+                
+                if success:
+                    st.success("✅ **New OTP sent to your email!**")
+                    st.rerun()
+                else:
+                    st.error(f"❌ Failed to send OTP: {message}")
+                
                 return False
             
-            # Import and use verify function
+            # Verify OTP
             from db.verify import verify_otp
-            
-            success, message, user_data = verify_otp(email, roll_number, entered_otp)
+            success, message, user_data = verify_otp(email, entered_otp)
             
             if success:
                 st.success(f"✅ {message}")
@@ -266,11 +269,10 @@ def render_otp_page(email, roll_number):
                 st.session_state["user_roll"] = user_data['roll_number']
                 
                 # Clear OTP session state
-                for key in ['otp_stage', 'otp_email', 'otp_roll']:
+                for key in ['otp_stage', 'otp_email', 'temp_user_data']:
                     if key in st.session_state:
                         del st.session_state[key]
                 
-                # Redirect to main app
                 st.rerun()
                 return True
             else:
@@ -279,7 +281,7 @@ def render_otp_page(email, roll_number):
         
         if resend_button:
             with st.spinner("Sending new OTP..."):
-                success, message = generate_and_send_otp(email, roll_number)
+                success, message = generate_and_send_otp(email)
             
             if success:
                 st.success("✅ New OTP sent to your email!")
@@ -289,7 +291,6 @@ def render_otp_page(email, roll_number):
     
     # Help section
     st.divider()
-    
     with st.expander("ℹ️ Need Help?"):
         st.markdown(f"""
         **OTP sent to:** {email}
@@ -298,10 +299,7 @@ def render_otp_page(email, roll_number):
         - Check your spam/junk folder
         - Make sure you're entering the most recent OTP
         - OTP is valid for 5 minutes only
-        - Use the "Resend OTP" button if expired
-        - Click "Refresh Timer" to update the countdown
-        
-        **Security Note:** Each OTP can only be used once and expires automatically.
+        - New OTP will be sent automatically if expired
         """)
     
     return False
