@@ -12,7 +12,7 @@ def render_footer_markdown():
     st.markdown(
         """
         <div style='text-align: center; color: #666; padding: 20px;'>
-            <p>Developed with ❤️ by the JUMCA Placement 2024/26</p>
+            <p>Developed with ❤️ by the JUMCA Placement 2024-26</p>
             <p><em>AI-Powered Campus Recruitment Communications</em></p>
             <p style='font-size: 12px; margin-top: 10px;'>
                 🤖 Powered by Mistral AI for personalized content generation

@@ -31,7 +31,6 @@ def get_ist_time():
     return datetime.now(IST)
 
 def generate_dt():
-    """Generate dt in DDMMYYHHMM format"""
     now = get_ist_time()
     return now.strftime("%d%m%y%H%M")
 
@@ -113,10 +112,8 @@ def get_latest_user_log(email, dt=None):
         supabase = get_supabase_client()
         
         if dt:
-            # Get specific log entry by email and dt
             response = supabase.table("user_logs").select("*").eq("email", email).eq("dt", dt).execute()
         else:
-            # Get latest log entry by email
             response = supabase.table("user_logs").select("*").eq("email", email).order("last_login", desc=True).limit(1).execute()
         
         if response.data:
@@ -132,10 +129,8 @@ def update_user_log(email, updates, dt=None):
         supabase = get_supabase_client()
         
         if dt:
-            # Update specific log entry by email and dt
             supabase.table("user_logs").update(updates).eq("email", email).eq("dt", dt).execute()
         else:
-            # Update latest log entry by email
             latest_log = get_latest_user_log(email)
             if not latest_log:
                 return False, "No log entry found to update"
@@ -148,7 +143,6 @@ def update_user_log(email, updates, dt=None):
         return False, f"Error updating user log: {e}"
 
 def get_user_log_by_email_dt(email, dt):
-    """Get user log by email and dt combination"""
     try:
         supabase = get_supabase_client()
         response = supabase.table("user_logs").select("*").eq("email", email).eq("dt", dt).execute()
@@ -162,13 +156,11 @@ def get_user_log_by_email_dt(email, dt):
         return None
 
 def log_mail_activity(coordinator_name, company_name, hr_email, coordinator_email=None, email_subject=None, email_body=None):
-    """Log mail sending activity to mail_logs table"""
     try:
         supabase = get_supabase_client()
         
         ist_time = get_ist_time()
         
-        # Create mail log entry with only the columns that exist in the table
         mail_log_entry = {
             "coordinator_name": coordinator_name,
             "company_name": company_name,
@@ -176,10 +168,6 @@ def log_mail_activity(coordinator_name, company_name, hr_email, coordinator_emai
             "timestamp": ist_time.isoformat(),
         }
         
-        # Note: coordinator_email, email_subject, and email_body are not stored 
-        # as they don't exist in the current mail_logs table structure
-        
-        # Insert into mail_logs table
         response = supabase.table("mail_logs").insert(mail_log_entry).execute()
         
         return True, "Mail activity logged successfully"
@@ -188,7 +176,6 @@ def log_mail_activity(coordinator_name, company_name, hr_email, coordinator_emai
         return False, f"Error logging mail activity: {e}"
 
 def get_mail_logs_by_coordinator(coordinator_email=None, coordinator_name=None):
-    """Get mail logs by coordinator email or name"""
     try:
         supabase = get_supabase_client()
         
@@ -209,7 +196,6 @@ def get_mail_logs_by_coordinator(coordinator_email=None, coordinator_name=None):
         return None, f"Error fetching mail logs: {e}"
 
 def get_mail_logs_by_company(company_name):
-    """Get mail logs by company name"""
     try:
         supabase = get_supabase_client()
         

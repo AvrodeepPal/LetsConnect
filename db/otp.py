@@ -123,21 +123,18 @@ def verify_otp(email, entered_otp, dt):
         try:
             ist_time = get_ist_time()
             
-            # Update the existing record to mark as verified instead of clearing
             update_user_log(email, {
                 "password_hash": "otp_verified_success",
                 "last_login": ist_time.isoformat()
-                # KEEP otp and otp_expiry for audit trail
             }, dt)
             
-            # Create a new log entry for successful login
             log_user_activity(
                 email=email,
                 activity_type="login_success",
                 details={
                     "password_hash": "otp_login_complete",
                     "last_login": ist_time.isoformat(),
-                    "verified_dt": dt  # Reference to the OTP verification session
+                    "verified_dt": dt
                 }
             )
             
@@ -150,7 +147,6 @@ def verify_otp(email, entered_otp, dt):
         return False, f"OTP verification error: {str(e)}", None
 
 def clear_user_otp(email, dt):
-    """Only use this function for manual OTP clearing, not after successful verification"""
     try:
         success, message = update_user_log(email, {
             "otp": None,
@@ -184,13 +180,11 @@ def get_remaining_otp_time(email, dt):
         return 0
 
 def cleanup_expired_otps():
-    """Only clear expired OTPs, not successful ones"""
     try:
         supabase = get_supabase_client()
         
         now_ist = get_ist_time()
         
-        # Only clear OTPs that are expired AND not yet verified
         supabase.table("user_logs").update({
             "otp": None,
             "otp_expiry": None
@@ -202,7 +196,6 @@ def cleanup_expired_otps():
         return False, f"Error cleaning up expired OTPs: {e}"
 
 def mark_otp_as_used(email, dt):
-    """Mark OTP as used without clearing it"""
     try:
         ist_time = get_ist_time()
         success, message = update_user_log(email, {

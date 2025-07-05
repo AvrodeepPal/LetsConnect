@@ -52,10 +52,9 @@ def verify_password(email, password):
         return False, f"Authentication error: {e}", None
 
 def create_user_session(email, user_data):
-    """Create user session with dt tracking"""
     try:
         ist_time = get_ist_time()
-        dt = generate_dt()  # Generate dt for this session
+        dt = generate_dt()
         
         success, message, session_dt = log_user_activity(
             email=email,
@@ -76,13 +75,11 @@ def create_user_session(email, user_data):
         return False, f"Session creation error: {e}", None
 
 def authenticate_user(email, password):
-    """Authenticate user with password verification"""
     success, message, user_data = verify_password(email, password)
     
     if not success:
         return success, message, user_data
     
-    # Create session with dt tracking
     session_success, session_message, session_dt = create_user_session(email, user_data)
     
     if not session_success:
@@ -92,29 +89,24 @@ def authenticate_user(email, password):
     return True, f"Authentication successful for {user_data['name']}", user_data
 
 def validate_user_exists(email):
-    """Check if user exists in the system"""
     user_data = get_user_by_email_local(email)
     return user_data is not None, user_data
 
 def get_user_info(email):
-    """Get user information by email"""
     return get_user_by_email_local(email)
 
 def hash_password(password):
-    """Hash password using bcrypt"""
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
     return hashed.decode('utf-8')
 
 def verify_password_hash(password, hashed_password):
-    """Verify password against hash"""
     try:
         return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
     except Exception:
         return False
 
 def log_password_verification(email, success=True):
-    """Log password verification attempt"""
     try:
         ist_time = get_ist_time()
         dt = generate_dt()

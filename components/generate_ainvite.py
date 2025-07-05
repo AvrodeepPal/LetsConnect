@@ -3,10 +3,8 @@ from utils.prompt_generator import create_improved_prompt, create_validation_pro
 from utils.post_processor import post_process_mail, fix_bullet_count
 
 def render_generate_section(company_name, selected_coordinator, additional_info, base_message, client, num_bullet_points):
-    """Render the Generate AI-Powered Invitation section"""
     st.subheader("🚀 Generate AI-Powered Invitation")
 
-    # Create columns for better layout
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
@@ -16,13 +14,11 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
             use_container_width=True
         )
 
-    # Initialize session state for generated content
     if 'generated_content' not in st.session_state:
         st.session_state.generated_content = ""
     if 'mail_generated' not in st.session_state:
         st.session_state.mail_generated = False
 
-    # Enhanced generation logic
     if generate_button:
         st.session_state.mail_generated = True
         
@@ -32,7 +28,6 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
             with st.spinner(f"🤖 Generating personalized invitation for {company_name}..."):
                 try:
                     if client:
-                        # First AI generation call
                         response = client.chat.completions.create(
                             model="mistralai/mistral-small-3.2-24b-instruct:free",
                             extra_headers={
@@ -56,7 +51,6 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                             max_tokens=800,
                         )
                         
-                        # Enhanced error checking for API response
                         if not response:
                             raise Exception("API returned no response")
                         if not hasattr(response, 'choices') or not response.choices:
@@ -71,11 +65,8 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                             raise Exception("API returned empty content")
                         
                         initial_content = initial_content.strip()
-                        
-                        # Fix bullet count before validation
                         initial_content = fix_bullet_count(initial_content, num_bullet_points, company_name)
                         
-                        # Second AI call for validation and refinement
                         with st.spinner("🔍 Validating email structure and requirements..."):
                             validation_prompt = create_validation_prompt(
                                 initial_content,
@@ -102,7 +93,6 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                                 max_tokens=800
                             )
                             
-                            # Enhanced error checking for validation response
                             if not validation_response:
                                 raise Exception("Validation API returned no response")
                             if not hasattr(validation_response, 'choices') or not validation_response.choices:
@@ -117,11 +107,8 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                                 raise Exception("Validation API returned empty content")
                             
                             validated_content = validated_content.strip()
-                            
-                            # Fix bullet count again after validation
                             validated_content = fix_bullet_count(validated_content, num_bullet_points, company_name)
                         
-                        # Final post-processing for any remaining issues
                         with st.spinner("🔧 Finalizing email format..."):
                             st.session_state.generated_content = post_process_mail(
                                 validated_content, 
@@ -140,7 +127,6 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                     
                 except Exception as e:
                     st.error(f"❌ OpenRouter API error: {e}")
-                    # Enhanced fallback option with proper bullet count
                     bullet_points = [
                         "✅ Data Science & Analytics",
                         "✅ Machine Learning & AI", 
@@ -154,7 +140,6 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                         "✅ API Development & Integration"
                     ]
                     
-                    # Select the exact number of bullet points based on slider value
                     selected_bullets = bullet_points[:num_bullet_points]
                     bullet_text = "\n".join(selected_bullets)
                     

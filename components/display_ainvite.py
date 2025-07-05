@@ -5,48 +5,38 @@ from utils.email_sender import send_email_with_env_credentials, create_download_
 from db.database import log_mail_activity, get_ist_time
 
 def is_valid_email(email):
-    """Validate email format"""
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
 def render_generated_mail_display(company_name, selected_coordinator):
-    """Render the generated mail display section"""
     if st.session_state.get('mail_generated', False) and st.session_state.get('generated_content', ''):
         st.subheader("📧 Generated Invitation Mail")
         
-        # Display the generated mail in a text area for easy copying and editing
         edited_content = st.text_area(
             "Generated Email Content (Editable):",
             value=st.session_state.generated_content,
-            height=400,
-            help="You can edit this content before sending"
+            height=400
         )
         
-        # Email sending section
         st.subheader("📨 Send Email")
         
-        # Email input fields in columns
         col1, col2 = st.columns(2)
         
         with col1:
             hr_email = st.text_input(
                 "Enter HR / Company Email:",
-                placeholder="hr@company.com",
-                help="Enter the recipient's email address"
+                placeholder="hr@company.com"
             )
         
         with col2:
             email_subject = st.text_input(
                 "Subject:",
-                value="Invitation to Jadavpur University Campus Placement 2026",
-                help="Email subject line"
+                value="Invitation to Jadavpur University Campus Placement 2026"
             )
         
-        # Action buttons
         col1, col2 = st.columns(2)
         
         with col1:
-            # Download as text file
             if edited_content:
                 download_link = create_download_link(
                     edited_content,
@@ -55,12 +45,9 @@ def render_generated_mail_display(company_name, selected_coordinator):
                 st.markdown(download_link, unsafe_allow_html=True)
         
         with col2:
-            # Send email button
             send_email_clicked = st.button("📨 Send Email", key="send_email_btn")
             
-        # Handle email sending logic outside of the button context
         if send_email_clicked:
-            # Validation
             validation_errors = []
             
             if not hr_email.strip():
@@ -80,18 +67,14 @@ def render_generated_mail_display(company_name, selected_coordinator):
             if not company_name:
                 validation_errors.append("❌ Please ensure company name is provided.")
             
-            # Display validation errors if any
             if validation_errors:
                 for error in validation_errors:
                     st.error(error)
             else:
-                # Show loading spinner
                 with st.spinner("Sending email..."):
                     try:
-                        # Get coordinator email from session state or database
                         coordinator_email = st.session_state.get('user_email', '')
                         
-                        # Send email using the new function that uses env credentials
                         success, message = send_email_with_env_credentials(
                             recipient_email=hr_email.strip(),
                             subject=email_subject.strip(),
@@ -101,7 +84,6 @@ def render_generated_mail_display(company_name, selected_coordinator):
                         if success:
                             st.success("✅ Email sent successfully!")
                             
-                            # Log the mail activity
                             try:
                                 log_success, log_message = log_mail_activity(
                                     coordinator_name=selected_coordinator,
