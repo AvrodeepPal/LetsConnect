@@ -1,71 +1,66 @@
 import os
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import pytz
 
-# Get the absolute path to the project root directory
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 env_path = os.path.join(project_root, '.env')
 
-# Load environment variables from the correct path
 load_dotenv(env_path)
 
 url = os.getenv("SUPABASE_URL")
 key = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
-# IST timezone
 IST = pytz.timezone('Asia/Kolkata')
 
 def get_ist_time():
-    """Get current time in IST"""
     return datetime.now(IST)
 
 def get_utc_time():
-    """Get current time in UTC"""
     return datetime.now(timezone.utc)
 
-def log_successful_login(email):
-    """
-    Log a successful login to the user_logs table with IST time
-    """
+def generate_dt():
+    """Generate dt in DDMMYYHHMM format"""
+    now = get_ist_time()
+    return now.strftime("%d%m%y%H%M")
+
+def log_successful_login(email, dt=None):
     try:
-        # Get current IST time
         ist_time = get_ist_time()
+        
+        if not dt:
+            dt = generate_dt()
         
         login_record = {
             "email": email,
-            "password_hash": "successful_login",
-            "last_login": ist_time.isoformat(),  # Store IST time directly
-            "otp": None,
-            "otp_expiry": None
+            "dt": dt,
+            "password_hash": "final_login_success",
+            "last_login": ist_time.isoformat()
+            # Do not set otp and otp_expiry to None here
         }
         
         result = supabase.table("user_logs").insert(login_record).execute()
-        print(f"Login logged successfully for {email}")
+        print(f"Final login logged successfully for {email} with dt: {dt}")
         print(f"IST time saved: {ist_time.strftime('%Y-%m-%d %H:%M:%S %Z')}")
         print(f"IST time ISO: {ist_time.isoformat()}")
-        return True, "Login logged successfully"
+        return True, "Login logged successfully", dt
         
     except Exception as e:
         print(f"Error logging successful login: {e}")
-        return False, f"Error logging login: {e}"
+        return False, f"Error logging login: {e}", None
 
-def verify_otp(email, entered_otp):
-    """
-    Verify OTP against database and check expiry
-    Returns: (success: bool, message: str, user_data: dict or None)
-    """
+def verify_otp(email, entered_otp, dt):
+    """Verify OTP using email and dt combination"""
     try:
-        # Get user data from coord_details table
-        from db.auth import get_user_by_email
-        user_data = get_user_by_email(email)
+        from db.auth import get_user_by_email_local
+        user_data = get_user_by_email_local(email)
         if not user_data:
             return False, "User not found", None
         
-        # Get the latest OTP record for this user
-        response = supabase.table("user_logs").select("*").eq("email", email).order("last_login", desc=True).limit(1).execute()
+        # Get specific OTP record by email and dt
+        response = supabase.table("user_logs").select("*").eq("email", email).eq("dt", dt).execute()
         
         if not response.data:
             return False, "No OTP record found. Please request a new OTP.", None
@@ -77,45 +72,47 @@ def verify_otp(email, entered_otp):
         if not stored_otp or not otp_expiry_str:
             return False, "Invalid OTP record. Please request a new OTP.", None
         
-        # Parse expiry time properly
+        # Parse OTP expiry time
         try:
-            # Handle different datetime formats
             if otp_expiry_str.endswith('Z'):
                 otp_expiry = datetime.fromisoformat(otp_expiry_str.replace('Z', '+00:00'))
             elif '+' in otp_expiry_str or otp_expiry_str.endswith('+00:00'):
                 otp_expiry = datetime.fromisoformat(otp_expiry_str)
             else:
-                # Assume UTC if no timezone info
                 otp_expiry = datetime.fromisoformat(otp_expiry_str).replace(tzinfo=timezone.utc)
-        except:
+        except Exception as parse_error:
+            print(f"Error parsing OTP expiry: {parse_error}")
             return False, "Invalid OTP expiry format. Please request a new OTP.", None
         
-        # Check if OTP has expired
-        now_utc = get_utc_time()
+        # Check if OTP is expired
+        now_ist = get_ist_time()
+        otp_expiry_ist = otp_expiry.astimezone(IST)
         
-        if now_utc > otp_expiry:
+        if now_ist >= otp_expiry_ist:
             return False, "OTP has expired. Please request a new OTP.", None
         
-        # Verify OTP
+        # Check if OTP matches
         if stored_otp != entered_otp:
             return False, "Invalid OTP. Please check and try again.", None
         
-        # OTP is valid - Log successful login
+        # OTP is valid, update the record to mark as verified
         try:
-            # Log the successful login
-            log_successful_login(email)
+            ist_time = get_ist_time()
             
-            # Clear the OTP from the previous record to prevent reuse
+            # Update the existing record to mark as verified, keep OTP data
             supabase.table("user_logs").update({
-                "otp": None,
-                "otp_expiry": None
-            }).eq("id", otp_record["id"]).execute()
+                "password_hash": "otp_verified_success",
+                "last_login": ist_time.isoformat()
+                # Keep otp and otp_expiry for audit trail
+            }).eq("email", email).eq("dt", dt).execute()
+            
+            # Create a new log entry for final successful login
+            success, message, login_dt = log_successful_login(email)
             
         except Exception as log_error:
             print(f"Warning: Could not log successful login: {log_error}")
-            # Continue with login even if logging fails
         
-        # Get additional user data from coord_details
+        # Get user data from coord_details table
         coord_response = supabase.table("coord_details").select("*").eq("email", email).execute()
         if coord_response.data:
             coord_data = coord_response.data[0]
@@ -123,6 +120,7 @@ def verify_otp(email, entered_otp):
                 'id': coord_data['id'],
                 'name': coord_data['name'],
                 'email': coord_data['email'],
+                'phone': coord_data.get('phone'),
                 'roll_number': coord_data['roll_number']
             }
         
@@ -131,23 +129,26 @@ def verify_otp(email, entered_otp):
     except Exception as e:
         return False, f"Verification error: {str(e)}", None
 
-def is_otp_valid(email):
-    """
-    Check if there's a valid (non-expired) OTP for the given email
-    Returns: (valid: bool, remaining_seconds: int)
-    """
+def is_otp_valid(email, dt):
+    """Check if OTP is valid for specific email and dt combination"""
     try:
-        # Get the latest OTP record
-        response = supabase.table("user_logs").select("otp_expiry").eq("email", email).order("last_login", desc=True).limit(1).execute()
+        response = supabase.table("user_logs").select("otp, otp_expiry, password_hash").eq("email", email).eq("dt", dt).execute()
         
         if not response.data:
             return False, 0
         
-        otp_expiry_str = response.data[0].get('otp_expiry')
-        if not otp_expiry_str:
+        otp_data = response.data[0]
+        otp = otp_data.get('otp')
+        otp_expiry_str = otp_data.get('otp_expiry')
+        password_hash = otp_data.get('password_hash')
+        
+        # If already verified, consider it invalid for new attempts
+        if password_hash == "otp_verified_success":
             return False, 0
         
-        # Parse expiry time
+        if not otp or not otp_expiry_str:
+            return False, 0
+        
         try:
             if otp_expiry_str.endswith('Z'):
                 otp_expiry = datetime.fromisoformat(otp_expiry_str.replace('Z', '+00:00'))
@@ -155,14 +156,15 @@ def is_otp_valid(email):
                 otp_expiry = datetime.fromisoformat(otp_expiry_str)
             else:
                 otp_expiry = datetime.fromisoformat(otp_expiry_str).replace(tzinfo=timezone.utc)
-        except:
+        except Exception as parse_error:
+            print(f"Error parsing OTP expiry: {parse_error}")
             return False, 0
         
-        # Check expiry
-        now_utc = get_utc_time()
+        now_ist = get_ist_time()
+        otp_expiry_ist = otp_expiry.astimezone(IST)
         
-        if now_utc < otp_expiry:
-            remaining_seconds = int((otp_expiry - now_utc).total_seconds())
+        if now_ist < otp_expiry_ist:
+            remaining_seconds = int((otp_expiry_ist - now_ist).total_seconds())
             return True, remaining_seconds
         else:
             return False, 0
@@ -172,31 +174,55 @@ def is_otp_valid(email):
         return False, 0
 
 def clear_expired_otps():
-    """Clear all expired OTPs from the database"""
+    """Clear only expired OTPs that haven't been verified"""
     try:
-        now_utc = get_utc_time().isoformat()
+        now_ist = get_ist_time()
         
-        # Clear expired OTPs
+        # Only clear OTPs that are expired AND not verified
         supabase.table("user_logs").update({
             "otp": None,
             "otp_expiry": None
-        }).lt("otp_expiry", now_utc).execute()
+        }).lt("otp_expiry", now_ist.isoformat()).neq("password_hash", "otp_verified_success").execute()
         
         return True, "Expired OTPs cleared successfully"
         
     except Exception as e:
         return False, f"Error clearing expired OTPs: {e}"
 
-def revoke_otp(email):
-    """Revoke/clear OTP for a specific user"""
+def revoke_otp(email, dt):
+    """Revoke OTP for specific email and dt combination"""
     try:
-        # Clear OTP for this user
         supabase.table("user_logs").update({
             "otp": None,
-            "otp_expiry": None
-        }).eq("email", email).execute()
+            "otp_expiry": None,
+            "password_hash": "otp_revoked"
+        }).eq("email", email).eq("dt", dt).execute()
         
         return True, "OTP revoked successfully"
         
     except Exception as e:
         return False, f"Error revoking OTP: {e}"
+
+def get_otp_info(email, dt):
+    """Get OTP information for specific email and dt combination"""
+    try:
+        response = supabase.table("user_logs").select("*").eq("email", email).eq("dt", dt).execute()
+        
+        if not response.data:
+            return None
+        
+        return response.data[0]
+        
+    except Exception as e:
+        print(f"Error getting OTP info: {e}")
+        return None
+
+def get_verified_otp_records(email):
+    """Get all verified OTP records for audit purposes"""
+    try:
+        response = supabase.table("user_logs").select("*").eq("email", email).eq("password_hash", "otp_verified_success").execute()
+        return response.data
+        
+    except Exception as e:
+        print(f"Error getting verified OTP records: {e}")
+        return []
