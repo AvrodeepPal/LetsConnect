@@ -160,3 +160,62 @@ def get_user_log_by_email_dt(email, dt):
     except Exception as e:
         print(f"Error fetching user log by email and dt: {e}")
         return None
+
+def log_mail_activity(coordinator_name, company_name, hr_email, coordinator_email=None, email_subject=None, email_body=None):
+    """Log mail sending activity to mail_logs table"""
+    try:
+        supabase = get_supabase_client()
+        
+        ist_time = get_ist_time()
+        
+        # Create mail log entry with only the columns that exist in the table
+        mail_log_entry = {
+            "coordinator_name": coordinator_name,
+            "company_name": company_name,
+            "hr_email": hr_email,
+            "timestamp": ist_time.isoformat(),
+        }
+        
+        # Note: coordinator_email, email_subject, and email_body are not stored 
+        # as they don't exist in the current mail_logs table structure
+        
+        # Insert into mail_logs table
+        response = supabase.table("mail_logs").insert(mail_log_entry).execute()
+        
+        return True, "Mail activity logged successfully"
+        
+    except Exception as e:
+        return False, f"Error logging mail activity: {e}"
+
+def get_mail_logs_by_coordinator(coordinator_email=None, coordinator_name=None):
+    """Get mail logs by coordinator email or name"""
+    try:
+        supabase = get_supabase_client()
+        
+        query = supabase.table("mail_logs").select("*")
+        
+        if coordinator_email:
+            query = query.eq("coordinator_email", coordinator_email)
+        elif coordinator_name:
+            query = query.eq("coordinator_name", coordinator_name)
+        else:
+            return None, "Either coordinator_email or coordinator_name must be provided"
+        
+        response = query.order("timestamp", desc=True).execute()
+        
+        return response.data, "Mail logs retrieved successfully"
+        
+    except Exception as e:
+        return None, f"Error fetching mail logs: {e}"
+
+def get_mail_logs_by_company(company_name):
+    """Get mail logs by company name"""
+    try:
+        supabase = get_supabase_client()
+        
+        response = supabase.table("mail_logs").select("*").eq("company_name", company_name).order("timestamp", desc=True).execute()
+        
+        return response.data, "Mail logs retrieved successfully"
+        
+    except Exception as e:
+        return None, f"Error fetching mail logs for company: {e}"
