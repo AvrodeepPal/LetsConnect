@@ -1,4 +1,3 @@
-# Ignore the following files
 .env
 .venv
 .venv/
@@ -9,3 +8,4 @@ record.json
 tdata.json
 __pycache__/
 extras/
+.devcontainer/
