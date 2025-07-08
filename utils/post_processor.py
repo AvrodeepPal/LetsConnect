@@ -77,6 +77,10 @@ def post_process_mail(generated_mail, coordinator_name, coordinator_phone, selec
     processed_mail = processed_mail.replace("[COORDINATOR_NAME]", coordinator_name)
     processed_mail = processed_mail.replace("[COORDINATOR_PHONE]", coordinator_phone)
     
+    # Get department from selected_coordinator, fallback to 'Department' if not found
+    department = selected_coordinator.get('department', 'Department')
+    processed_mail = processed_mail.replace("[COORDINATOR_DEPARTMENT]", department)
+    
     lines = processed_mail.split('\n')
     formatted_lines = []
     

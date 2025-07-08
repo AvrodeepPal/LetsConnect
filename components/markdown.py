@@ -1,13 +1,11 @@
 import streamlit as st
 
 def render_header():
-    """Render the main header and title section"""
     st.title("🤝 Lets Connect!")
     st.markdown("*Generate personalized invitation emails for campus recruitment drives*")
     st.divider()
 
 def render_footer_markdown():
-    """Render the footer section"""
     st.divider()
     st.markdown(
         """
@@ -23,13 +21,11 @@ def render_footer_markdown():
     )
 
 def render_section_header(title, subtitle=None):
-    """Render a section header with optional subtitle"""
     st.subheader(title)
     if subtitle:
         st.markdown(f"*{subtitle}*")
 
 def render_info_message(message_type="info", message=""):
-    """Render different types of info messages"""
     if message_type == "info":
         st.info(message)
     elif message_type == "success":
@@ -40,7 +36,6 @@ def render_info_message(message_type="info", message=""):
         st.error(message)
 
 def render_instructions():
-    """Render usage instructions"""
     st.markdown("""
     ### 📋 How to Use:
     
@@ -75,9 +70,7 @@ def render_features_showcase():
     """)
 
 def render_loading_message(message="Processing..."):
-    """Render a loading message with spinner"""
     with st.spinner(message):
-        # This is typically used with context managers
         pass
 
 def render_stats_cards(stats_data):
@@ -88,7 +81,6 @@ def render_stats_cards(stats_data):
             st.metric(label=label, value=value)
 
 def render_company_info_help():
-    """Render help text for company information section"""
     st.markdown("""
     ### 💡 Company Information Tips:
     
@@ -109,12 +101,10 @@ def render_company_info_help():
     """)
 
 def render_email_preview_header():
-    """Render the email preview section header"""
     st.markdown("### 👀 Email Preview:")
     st.markdown("**Subject:** Campus Recruitment Invitation - Jadavpur University")
 
 def render_action_buttons_help():
-    """Render help text for action buttons"""
     st.markdown("""
     ### 🎯 Available Actions:
     
@@ -125,7 +115,6 @@ def render_action_buttons_help():
     """)
 
 def render_security_notice():
-    """Render security and privacy notice"""
     st.markdown("""
     ### 🔒 Security & Privacy Notice:
     
@@ -136,7 +125,6 @@ def render_security_notice():
     """)
 
 def render_api_status(status="active"):
-    """Render API status indicator"""
     if status == "active":
         st.success("🟢 AI Service: Active")
     elif status == "inactive":

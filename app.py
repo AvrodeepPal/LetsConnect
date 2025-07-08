@@ -1,4 +1,9 @@
 import streamlit as st
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
 
 from utils.data_loader import load_data
 from utils.openrouter_client import init_openrouter_client
@@ -26,9 +31,19 @@ def handle_logout():
     st.rerun()
 
 def render_main_app():
+    # Check if required environment variables are set
+    if not os.getenv("SUPABASE_URL") or not os.getenv("SUPABASE_KEY"):
+        st.error("❌ Supabase configuration missing. Please check SUPABASE_URL and SUPABASE_KEY in environment variables.")
+        return
+    
     data = load_data()
     coordinators = data.get('coordinators', [])
     base_message_template = data.get('base_message', '')
+    
+    if not coordinators:
+        st.error("❌ No coordinator data available. Please check your Supabase connection.")
+        return
+    
     client = init_openrouter_client()
     
     current_user = get_current_user()

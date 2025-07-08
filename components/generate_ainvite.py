@@ -23,7 +23,10 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
         st.session_state.mail_generated = True
         
         if company_name and selected_coordinator:
-            prompt = create_improved_prompt(company_name, additional_info, base_message, num_bullet_points)
+            # Get department from selected_coordinator
+            department = selected_coordinator.get('department', 'Department')
+            
+            prompt = create_improved_prompt(company_name, additional_info, base_message, num_bullet_points, department)
             
             with st.spinner(f"🤖 Generating personalized invitation for {company_name}..."):
                 try:
@@ -37,7 +40,7 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                             messages=[
                                 {
                                     "role": "system", 
-                                    "content": f"""You are a professional placement officer at Jadavpur University. 
+                                    "content": f"""You are a professional placement officer at Jadavpur University {department} department. 
                                     Write personalized, CONCISE recruitment emails that are tailored to each company's specific industry and needs. 
                                     Always follow the exact structure provided in the prompt. 
                                     Keep emails short, professional, and impactful - around 200-300 words total.
@@ -73,7 +76,8 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                                 selected_coordinator['name'],
                                 selected_coordinator['phone'], 
                                 selected_coordinator['email'],
-                                company_name
+                                company_name,
+                                department
                             )
                             
                             validation_response = client.chat.completions.create(
@@ -85,7 +89,7 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                                 messages=[
                                     {
                                         "role": "system",
-                                        "content": f"""You are a meticulous email quality checker. Your job is to ensure emails follow exact specifications for professional recruitment communications. Always maintain the personalized content while fixing structure, formatting, and contact details to match requirements exactly. Use proper spacing between sections for better readability. IMPORTANT: Maintain exactly {num_bullet_points} bullet points in the skills section. Return ONLY the clean email content without any introductory text."""
+                                        "content": f"""You are a meticulous email quality checker. Your job is to ensure emails follow exact specifications for professional recruitment communications. Always maintain the personalized content while fixing structure, formatting, and contact details to match requirements exactly. Use proper spacing between sections for better readability. IMPORTANT: Maintain exactly {num_bullet_points} bullet points in the skills section. The department in signature must be {department}. Return ONLY the clean email content without any introductory text."""
                                     },
                                     {"role": "user", "content": validation_prompt}
                                 ],
@@ -127,6 +131,10 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                     
                 except Exception as e:
                     st.error(f"❌ OpenRouter API error: {e}")
+                    
+                    # Fallback email generation with department information
+                    department = selected_coordinator.get('department', 'Department')
+                    
                     bullet_points = [
                         "✅ Data Science & Analytics",
                         "✅ Machine Learning & AI", 
@@ -144,6 +152,7 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                     bullet_text = "\n".join(selected_bullets)
                     
                     st.session_state.generated_content = f"""Dear Recruitment Team,
+
 Greetings from the Jadavpur University Placement Cell!
 
 We are excited to invite {company_name} to participate in our Campus Recruitment Drive for the 2026 graduating batch.
@@ -162,7 +171,7 @@ We look forward to a fruitful collaboration with {company_name}!
 
 Best Regards,  
 {selected_coordinator['name']}  
-Placement Coordinator, MCA  
+Placement Coordinator, {department}  
 Jadavpur Placement Cell  
 📞 {selected_coordinator['phone']}"""
             

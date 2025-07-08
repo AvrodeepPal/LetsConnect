@@ -85,8 +85,11 @@ def render_generated_mail_display(company_name, selected_coordinator):
                             st.success("✅ Email sent successfully!")
                             
                             try:
+                                # Updated to use coordinator name instead of selected_coordinator directly
+                                coordinator_name = selected_coordinator['name'] if selected_coordinator else 'Unknown'
+                                
                                 log_success, log_message = log_mail_activity(
-                                    coordinator_name=selected_coordinator,
+                                    coordinator_name=coordinator_name,
                                     company_name=company_name,
                                     hr_email=hr_email.strip(),
                                     coordinator_email=coordinator_email,

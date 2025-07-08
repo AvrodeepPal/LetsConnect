@@ -1,5 +1,5 @@
 # Updated validation prompt with clearer spacing instructions
-def create_validation_prompt(generated_email, coordinator_name, coordinator_phone, coordinator_email, company_name):
+def create_validation_prompt(generated_email, coordinator_name, coordinator_phone, coordinator_email, company_name, department):
     """Create a validation prompt to ensure the email follows exact requirements with proper spacing"""
     return f"""
 You are a quality assurance specialist for professional emails. Review and refine the following recruitment email to ensure it meets EXACT requirements:
@@ -15,7 +15,7 @@ REQUIRED SPECIFICATIONS:
 2. **Signature Block**: Must end with exactly:
    Best Regards,
    {coordinator_name}
-   Placement Coordinator, MCA
+   Placement Coordinator, {department}
    Jadavpur Placement Cell
    📞 {coordinator_phone}
 
@@ -44,7 +44,7 @@ REQUIRED SPECIFICATIONS:
    
    [Contact information with exact emails]
    
-   [Signature block]
+   [Signature block with {department}]
 
 6. **Company Name**: Must be "{company_name}" throughout
 
@@ -54,17 +54,18 @@ IMPORTANT:
 - Return ONLY the clean email content without any introductory text, headers, footers, or "---" markers
 - Start directly with "Dear Recruitment Team," and end with the signature block
 - Ensure proper visual separation between different content sections
+- Department must be "{department}" in the signature block
 """
 
-# Updated improved prompt with better spacing guidance and num_bullet_points parameter
-def create_improved_prompt(company_name, additional_info, base_message, num_bullet_points=6):
-    """Create an improved prompt for better email generation with proper spacing"""
+# Updated improved prompt with better spacing guidance and department parameter
+def create_improved_prompt(company_name, additional_info, base_message, num_bullet_points=6, department="Department"):
+    """Create an improved prompt for better email generation with proper spacing and dynamic department"""
     
     # Generate the bullet point template based on num_bullet_points
     bullet_template = "\n".join([f"✅ [Skill {i+1} relevant to {company_name}]" for i in range(num_bullet_points)])
     
     return f"""
-You are a professional placement officer at Jadavpur University MCA department. Write a complete, personalized invitation email for campus recruitment.
+You are a professional placement officer at Jadavpur University {department} department. Write a complete, personalized invitation email for campus recruitment.
 
 Company: {company_name}
 Additional Context: {additional_info or "General recruitment invitation"}
@@ -92,7 +93,7 @@ We look forward to a fruitful collaboration with {company_name}!
 
 Best Regards,  
 [COORDINATOR_NAME]  
-Placement Coordinator, MCA  
+Placement Coordinator, [COORDINATOR_DEPARTMENT]  
 Jadavpur Placement Cell  
 📞 [COORDINATOR_PHONE]
 
@@ -106,6 +107,7 @@ MANDATORY REQUIREMENTS:
 - Professional tone but engaging
 - Total length around 200-300 words
 - Return ONLY the email content, no extra text or markers
+- Department in signature must be the coordinator's department: {department}
 
 REMEMBER: The skills section must contain exactly {num_bullet_points} bullet points. Count them carefully!
 """
