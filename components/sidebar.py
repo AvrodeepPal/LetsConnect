@@ -13,21 +13,7 @@ def render_sidebar(selected_coordinator, company_name):
             st.write(f"**Name:** {selected_coordinator['name']}")
             st.write(f"**Email:** {selected_coordinator['email']}")
             st.write(f"**Phone:** {selected_coordinator['phone']}")
-        
-        st.divider()
-        
-        st.subheader("📊 Session Statistics")
-        # Get current session stats (you can enhance this with actual tracking)
-        if 'mail_count' not in st.session_state:
-            st.session_state.mail_count = 0
-        if st.session_state.mail_generated and st.session_state.generated_content:
-            if 'last_company' not in st.session_state or st.session_state.last_company != company_name:
-                st.session_state.mail_count += 1
-                st.session_state.last_company = company_name
-        
-        st.metric("Mails Generated This Session", st.session_state.mail_count)
-        st.metric("Current Model", "Mistral AI")
-        st.metric("Personalization Level", "High")
+            st.write(f"**Department:** {selected_coordinator['department']}")
         
         st.divider()
         
@@ -57,3 +43,18 @@ def render_sidebar(selected_coordinator, company_name):
         - **Review**: Always review generated content
         - **Personalize**: Edit if needed before sending
         """)
+
+        st.divider()
+
+        st.subheader("📊 Session Statistics")
+        # Get current session stats (you can enhance this with actual tracking)
+        if 'mail_count' not in st.session_state:
+            st.session_state.mail_count = 0
+        if st.session_state.mail_generated and st.session_state.generated_content:
+            if 'last_company' not in st.session_state or st.session_state.last_company != company_name:
+                st.session_state.mail_count += 1
+                st.session_state.last_company = company_name
+        
+        st.metric("Mails Generated This Session", st.session_state.mail_count)
+        st.metric("Current Model", "Mistral AI")
+        st.metric("Personalization Level", "High")
