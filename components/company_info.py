@@ -5,7 +5,6 @@ def render_company_info_section(coordinators):
     """Render the Company Information section with department-based coordinator filtering"""
     st.subheader("🏢 Company Information & Email Configuration")
 
-    # First row: Company Name, Department, Coordinator
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -16,7 +15,6 @@ def render_company_info_section(coordinators):
         )
 
     with col2:
-        # Department dropdown
         departments = get_unique_departments(coordinators)
         if departments:
             selected_department = st.selectbox(
@@ -29,7 +27,6 @@ def render_company_info_section(coordinators):
             selected_department = None
 
     with col3:
-        # Coordinator dropdown filtered by department
         if selected_department:
             department_coordinators = get_coordinators_by_department(coordinators, selected_department)
             if department_coordinators:
@@ -40,7 +37,6 @@ def render_company_info_section(coordinators):
                     help="Choose the coordinator who will be the point of contact"
                 )
                 
-                # Get selected coordinator details
                 selected_coordinator = next(
                     (coord for coord in department_coordinators if coord['name'] == selected_coordinator_name), 
                     None
@@ -51,7 +47,6 @@ def render_company_info_section(coordinators):
         else:
             selected_coordinator = None
 
-    # Additional Information and Bullet Points Configuration
     col4, col5 = st.columns([3, 1])
     
     with col4:

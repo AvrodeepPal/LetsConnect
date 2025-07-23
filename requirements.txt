@@ -6,3 +6,4 @@ passlib
 bcrypt
 supabase
 pytz
+st-copy

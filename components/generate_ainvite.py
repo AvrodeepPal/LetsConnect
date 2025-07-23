@@ -23,7 +23,6 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
         st.session_state.mail_generated = True
         
         if company_name and selected_coordinator:
-            # Get department from selected_coordinator
             department = selected_coordinator.get('department', 'Department')
             
             prompt = create_improved_prompt(company_name, additional_info, base_message, num_bullet_points, department)
@@ -132,7 +131,6 @@ def render_generate_section(company_name, selected_coordinator, additional_info,
                 except Exception as e:
                     st.error(f"❌ OpenRouter API error: {e}")
                     
-                    # Fallback email generation with department information
                     department = selected_coordinator.get('department', 'Department')
                     
                     bullet_points = [
